@@ -1,0 +1,53 @@
+{% extends "base_generic.html" %}
+
+{% block content %}
+<h1>Title: {{ book.title }}</h1>
+
+<p>
+  <strong>Author:</strong>
+  <!-- 
+      Reverse the author-detail url which is use a id 
+      So we need to give an id to correctly reverse the id
+    -->
+  <a href="{{ book.author.get_absolute_url }}">{{ book.author }}</a>
+  <!-- <a href="{\% url 'author-detail' book.author.pk %}">{{ book.author }}</a> -->
+</p>
+
+<p><strong>Summary:</strong> {{ book.summary }}</p>
+<p><strong>ISBN:</strong> {{ book.isbn }}</p>
+<p><strong>Language:</strong> {{ book.language }}</p>
+<!-- We pipe function with "|" and give parameters with ":" -->
+<!-- join(book.genre.all, ", ") -->
+<p><strong>Genre:</strong> {{ book.genre.all|join:", " }}</p>
+
+<div style="margin-left:20px;margin-top:20px">
+  <h4>Copies</h4>
+
+  <!-- We loop on each instances of this books -->
+  <!-- We can have several copy of the same book -->
+  <!-- 
+      Because it's one to many relatchiship Djando created
+      a special function thar return all the instances linked to the book.
+      We use "_set()" because it's a set of values.
+  -->
+  <!-- We use all() but we can filter(title__contains='wild') also -->
+  {% for copy in book.bookinstance_set.all %}
+  <hr> <!-- Horizontal Rules -->
+  <p
+    class="{% if copy.status == 'a' %}text-success{% elif copy.status == 'm' %}text-danger{% else %}text-warning{% endif %}">
+    <!-- 
+      Status is a choice field.
+      So it's not directly in the table there is an external table.
+      We cant directly access to the value.
+      We need to use the django magic with "get_" and "_display".
+    -->
+    {{ copy.get_status_display }}
+  </p>
+  {% if copy.status != 'a' %}
+  <p><strong>Due to be returned:</strong> {{ copy.due_back }}</p>
+  {% endif %}
+  <p><strong>Imprint:</strong> {{ copy.imprint }}</p>
+  <p class="text-muted"><strong>Id:</strong> {{ copy.id }}</p>
+  {% endfor %}
+</div>
+{% endblock %}

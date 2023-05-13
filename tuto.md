@@ -131,7 +131,8 @@ aBook = MyBook.objects.filter(genre__name__contains='fiction')  # Foreign Key.
 
 ## Admin Site
 
-Data Base managment like fuflfil it. To do it register our model in the admin section:
+The admin site is for data base managment (like fuflfil it).
+To do it we need to register our model in the admin section:
 
 ```python
 # /catalog/admin.py
@@ -152,7 +153,7 @@ admin.site.register(Author, AuthorAdmin)
 python manage.py createsuperuser
 ```
 
-go to `/admin` the page we can add book redirect to this urls: `admin/catalog/book/add/`
+Go to the `/admin` page
 
 ## Views
 
@@ -212,7 +213,7 @@ def index(request):
     return render(request, 'index.html', context=context)
 ```
 
-### Views are used by templates
+### Views used templates
 
 Template are html file with blancks that the view function (DataBase extraction) fill it out.
 
@@ -300,7 +301,8 @@ We have now the base for all html files but we need to extend the base to make s
 
 {% block content %}
   <h1>Local Library Home</h1>
-  <p>Welcome to LocalLibrary, a website developed by <em>Mozilla Developer Network</em>!</p>
+  <p>Welcome to LocalLie
+  brary, a website developed by <em>Mozilla Developer Network</em>!</p>
   <h2>Dynamic content</h2>
   <p>The library has the following record counts:</p>
   <ul>
@@ -309,5 +311,215 @@ We have now the base for all html files but we need to extend the base to make s
     <li><strong>Copies available:</strong> {{ num_instances_available }}</li>
     <li><strong>Authors:</strong> {{ num_authors }}</li>
   </ul>
+{% endblock %}
+```
+
+## Class of views
+
+The concept is to create views (function and object) from a class.
+So we can loop on all DataBase elements in a much more generic ways.
+No need to create 200 views, just one class to get the data of one primary keys.
+
+### List page: list all records
+
+To gets the list of all recods in a model. The URL is: `catalog/books`
+We used `as_view()` to transform a class to a views.
+
+```python
+# /catalog/urls.py
+urlpatterns = [
+    path('books/', views.BookListView.as_view(), name='books'),
+]
+```
+
+```python
+# /catalof/views.py
+from django.views import generic
+
+class BookListView(generic.ListView):
+    # 1) One line to list all the availaible books.
+    model = Book
+
+    # OPTIONAL!
+    # 2) But we can add some extra variable to custom the default behavior.
+    # 2)a) The template variable name which contains all the books (list).
+    # By default the name is "object_list" or "book_list".
+    #context_object_name = 'my_book_list'
+
+    # 2)b) Filter the list instead of display all books.
+    #queryset = Book.objects.filter(title__icontains='war')[:5]
+    
+    # 2)c) Specify the template to use. By default the path is: 
+    # /catalog/templates/catalog/book_list.html
+    # For list view we need to create inside templates a second dir with the
+    # same app's name.
+    #template_name = 'books/my_arbitrary_template_name_list.html'
+```
+
+The views need to use one template:
+
+```html
+<!-- /catalog/templates/catalog/book_list.html -->
+{% extends "base_generic.html" %}
+
+{% block content %}
+  <h1>Book List</h1>
+  {% if book_list %}  <!-- Test if book_list is not empty -->
+  <ul>
+    {% for book in book_list %}
+      <li>
+        <!-- The book URL -->
+        <a href="{{ book.get_absolute_url }}">{{ book.title }}</a> ({{book.author}})
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <p>There are no books in the library.</p>
+  {% endif %}
+{% endblock %}
+```
+
+Reminders:
+
+```python
+def get_absolute_url(self):
+  """Returns the URL to access a detail record for this book."""
+  # Reverse an url mapper : create an url from a book id.
+  # Normally we get an URL an we extract the book id from it.
+  # book-detail is the name of a URL.
+  return reverse("book-detail", args=[str(self.id)])
+```
+
+### Detail page: all fields
+
+To get all informations of one record in model (SQL Table) : `catalog/book/<id>`
+
+```python
+# /catalog/urls.py
+# Primary Key field with is type
+urlpatterns = [
+  path('book/<int:pk>', views.BookDetailView.as_view(), name='book-detail'),
+],
+```
+
+Optional: We can also use regex instead:
+
+```python
+# we can optionaly use regex:
+re_path(r'^book/(?P<pk>\d+)$', views.BookDetailView.as_view(), name='book-detail'),
+# () to capture the partern and give the value to the view.
+    # (?P<name>...) capture the patern and give a named value to the view.
+```
+
+Optional: We can also use extra parameters in a view with a dictionary:
+
+```python
+path('myurl/<str:fish>', views.my_view, {'myVar': 'aValue'}, name='name')
+```
+
+So `myurl/halibut` point to the view:
+`views.my_view(request, fish=halibut, myVar='aValue')`
+
+```python
+# /catalog/views.py
+class BookDetailView(generic.DetailView):
+    model = Book
+```
+
+```html
+<!-- /catalog/templates/catalog/book_detail.html -->
+{% extends "base_generic.html" %}
+
+{% block content %}
+  <h1>Title: {{ book.title }}</h1>
+
+  <p>
+    <strong>Author:</strong>
+    <!-- 
+      Reverse the author-detail url which is use a id 
+      So we need to give an id to correctly reverse the id
+    -->
+    <a href="{% url 'author-detail' book.author.pk %}">{{ book.author }}</a>
+    <!-- 
+    If we want we can also to this manualy with: 
+     <a href="{{ book.author.get_absolute_url }}">{{ book.author }}</a>
+    -->
+  </p> 
+  
+  <p><strong>Summary:</strong> {{ book.summary }}</p>
+  <p><strong>ISBN:</strong> {{ book.isbn }}</p>
+  <p><strong>Language:</strong> {{ book.language }}</p>
+  <!-- We pipe function with "|" and give parameters with ":" -->
+  <!-- join(book.genre.all, ", ") -->
+  <p><strong>Genre:</strong> {{ book.genre.all|join:", " }}</p>
+
+  <div style="margin-left:20px;margin-top:20px">
+    <h4>Copies</h4>
+
+    <!-- We loop on each instances of this books -->
+    <!-- We can have several copy of the same book -->
+    <!-- 
+      Because it's one to many relatchiship Djando created
+      a special function thar return all the instances linked to the book.
+      We use "_set()" because it's a set of values.
+    -->
+    <!-- We use all() but we can filter(title__contains='wild') also -->
+    {% for copy in book.bookinstance_set.all %}
+      <hr>  <!-- Horizontal Rules -->
+      <p class="{% if copy.status == 'a' %}text-success{% elif copy.status == 'm' %}text-danger{% else %}text-warning{% endif %}">
+        <!-- 
+          Status is a choice field.
+          So it's not directly in the table there is an external table.
+          We cant directly access to the value.
+          We need to use the django magic with "get_" and "_display".
+        -->
+        {{ copy.get_status_display }}
+      </p>
+      {% if copy.status != 'a' %}
+        <p><strong>Due to be returned:</strong> {{ copy.due_back }}</p>
+      {% endif %}
+      <p><strong>Imprint:</strong> {{ copy.imprint }}</p>
+      <p class="text-muted"><strong>Id:</strong> {{ copy.id }}</p>
+    {% endfor %}
+  </div>
+{% endblock %}
+```
+
+### Pagination
+
+We can enabled pagination with:
+
+```python
+class BookListView(generic.ListView):
+    model = Book
+    paginate_by = 10
+```
+
+So every 10 records (books) we create an another page `/catalog/books/?page=2`
+
+But it's much more conveniant to access it with arrows on the bottom of the page:
+
+```html
+<!-- /catalog/templates/base_generic.html -->
+{% block pagination %}
+{% if is_paginated %}
+<div class="pagination">
+  <span class="page-links">
+
+    {% if page_obj.has_previous %}
+    <a href="{{ request.path }}?page={{ page_obj.previous_page_number }}">previous</a>
+    {% endif %}
+
+    <span class="page-current">
+      Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+    </span>
+
+    {% if page_obj.has_next %}
+    <a href="{{ request.path }}?page={{ page_obj.next_page_number }}">next</a>
+    {% endif %}
+
+  </span>
+</div>
+{% endif %}
 {% endblock %}
 ```
